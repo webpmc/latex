@@ -1,0 +1,125 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage{xspace}
+
+\newcommand{\webpmc}{\textsc{WebPMC}\xspace}
+\newcommand{\iscasmc}{\textsc{IscasMC}\xspace}
+
+%opening
+\title{Requirements for Including a Tool in \webpmc}
+\author{The \webpmc working group}
+
+\begin{document}
+
+\maketitle
+
+This document explains the requirements that the tool has to satisfy in order to be included in \webpmc, together with the additional features it should provide.
+
+In the remainder of the document we adopt the following terminology:
+\begin{description}
+\item[tool:] 
+	the model checker to be included (such as \iscasmc, PRISM, MRMC, \dots);
+\item[frontend:] 
+	the web application that is responsible to provide to the users the interface where the user can specify the model, the properties, the operations to be performed on them, \dots, as well as to show to the user the results of the performed operations;
+\item[backend:] 
+	the program running on the server that is responsible to perform the operations (or, tasks) required by the users. 
+	The backend does this by interacting with the model checker.
+\end{description}
+
+
+\section{Mandatory Requirements}
+\subsection{The Tool Itself}
+The tool has to be available and able to run on the server.
+Currently, the server is based on Ubuntu 14.04 LTS 64bits; the GCC version is 4.8.2 while the Java version is 1.7.0\_79. 
+We plan to install also Java 1.8 in the near future together with Java 1.7.
+
+The tool can be provided as source code together with the needed libraries and external tools (if not directly available in the repositories) as well as the instructions for compiling, installing, and configuring every provided part.
+
+Alternatively, the tool can be provided as a standalone executable file; 
+similarly the external tools can be provided as standalone executable files, together with the instructions for installing and configuring them.
+
+\subsection{The Tool Execution}
+The tool has to be able to run in text-only, non-interactive mode, and provide results that can be either machine or directly human readable.
+In the former case, it has to provide a way to translate them to a human readable format.
+
+
+
+
+
+\section{Additional Features}
+To simplify and make uniform the presentation for the users of the results the tool provides, the tool should support a set of additional features that are not strictly required for the execution, but that are useful for a nice and professional interaction with the users.
+
+
+\subsection{Partial Results}
+The tool should provide the output messages (log markers, results, \dots) as soon as they are available.
+Moreover, it would be useful if such messages can be easily identifiable so to split them in different events (associated with timestamps).
+
+\paragraph{Motivation.}
+The main motivation for having the output messages available as soon as possible is that this allows the frontend to show to the users the current status of their experiments, to show where the experiment takes a large amount of time, to avoid having incomplete messages as side-effect of buffering, and to avoid the loss of messages when the tool is killed as effect of the reached time-out.
+
+\paragraph{Current implementation in \iscasmc.}
+In the current implementation, the backend interacts with \iscasmc in a RMI-style mode.
+One of the parameters of the call is a channel object that is used by \iscasmc to send an object encapsulating a message to the backend.
+
+
+\subsection{Tool Invocation}
+The tool should be able to receive the input data (model, properties, \dots) without expecting them to be stored in files.
+
+\paragraph{Motivation.}
+Having to use files stored in the file-system to provide the tool with the expected data may cause problems with the concurrent behavior of the backend, that has to possibly manage multiple independent tasks at the same time.
+This means that by using files, we have to ensure that every task involves unique file names and that such files are created and removed appropriately during the elaboration of the task, even when the backend is restarted.
+
+\paragraph{Current implementation in \iscasmc.}
+Model, properties, options, and every other input needed by \iscasmc are provided as parameters of the above mentioned RMI-style invocation method. This means that these information are actually stored in Java objects that are local to the backend thread that is managing the task, so there is no interference with other tasks and no left-overs in the file system in case of problems.
+
+
+\subsection{Tool Options}
+The tool should provide a machine readable list of options it accepts; 
+for each option, the option name, the default value, the possible values, and a human readable description have to be provided.
+
+\paragraph{Motivation.}
+The users expect to be able to tune the tool as they do when they run the tool on their own machine, so we should provide the same functionality.
+Since different tools have different options, such options have to be presented with an uniform style to the user, thus the frontend should receive the tool specific options in a predefined format, present it to the user, and then store back the user choices in a predefined format.
+It is then a responsibility of the backend to translate back the options to the format expected by the tool, unless the tool itself provides such conversion.
+
+\paragraph{Current implementation in \iscasmc.}
+\iscasmc provides the options to the frontend as a Java object containing the expected information. 
+Similarly, it is able to receive the options to be used in the common Property format \texttt{option-name = option-value}.
+
+
+\subsection{Standalone Parser}
+The tool should provide a standalone parser or any other method in Java that is rather quick and that requires very few resources to check the syntax of the model the user is editing.
+
+\paragraph{Motivation}
+It is not so nice for the user to find that a task has failed due to a syntax error; 
+such errors can be easily identified and remarked in the web interface.
+In order to be effective, such a syntax check has to be performed in the frontend (or directly in the browser, but this means that the parser has to be rewritten in JavaScript and this may be too complex to be achieved) without passing through the backend.
+Since the frontend is responsible for the interaction with the user, it can not spend too much resources for each syntax check, hence the syntax checker has to be lightweight and fast.
+
+\paragraph{Current implementation in \iscasmc.}
+The frontend, based on Tomcat, invokes directly the parser of \iscasmc without activating the tool itself, by calling a specific method of the Parser object.
+Such a method performs the syntax check but it avoids to perform the other checks and object instantiations that are needed for the successive steps of \iscasmc.
+
+
+
+\subsection{Message Localization}
+The tool may support the localization of the messages.
+
+\paragraph{Motivation.}
+Even if English is the standard language for science, it may be useful to provide a localized version of \webpmc, for instance when it is used as support for Bachelor courses.
+Moreover, a possible way to design the tool so that it supports localization is to replace the actual string to be printed with an identifier that is then associated to the desired string.
+This permits to have a centralized overview of the messages and it simplifies the check for typos, uniformity, and format of the messages.
+
+\paragraph{Current implementation in \iscasmc.}
+All messages in \iscasmc are represented by an identifier and a list of values; 
+the actual message shown to the user is obtained by taking the string associated to the identifier and replacing its parameters with the values, according to their positions. (See the java.util.ResourceBundle class for details.)
+This means that it is enough to replace the strings associated to the identifiers with the corresponding localized ones to implement the tool localization.
+
+
+\section{Input Format Details}
+This part is currently based on what \iscasmc supports as input when interacting with the backend.
+
+\subsection{Model}
+The model to be analyzed is represented as a Java String object
+
+\end{document}
